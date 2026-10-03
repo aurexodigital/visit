@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Kitchen</title>
+<style>
+:root{--bg:#F2F5F1;--card:#fff;--ink:#1A2B29;--mute:#5E706D;--line:#D9E1DC;--acc:#0F766E;--on:#fff;--hi:#F2C94C;--new:#C2410C;--prep:#B7791F;--ready:#0F766E}
+@media(prefers-color-scheme:dark){:root{--bg:#101B1A;--card:#182726;--ink:#E8F0EE;--mute:#9DB1AD;--line:#2A3D3B;--acc:#3CC4B5;--on:#06201D;--new:#FB923C;--prep:#F2C94C;--ready:#3CC4B5}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,'Noto Sans Devanagari',sans-serif}
+button{font:inherit;cursor:pointer;border:0;color:inherit}main{max-width:720px;margin:0 auto;padding:14px}h1,h2{margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px}
+input{width:100%;font:inherit;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);margin-bottom:8px}
+.btn{background:var(--acc);color:var(--on);border-radius:12px;padding:13px;font-weight:600;width:100%;margin-bottom:10px}
+.vbtn{width:100%;padding:14px;border-radius:12px;background:var(--card);border:2px solid var(--acc);font-weight:600;font-size:17px;margin-bottom:12px}.vbtn.on{background:var(--acc);color:var(--on)}
+.tabs{display:flex;gap:6px;margin-bottom:12px}.tabs button{flex:1;padding:10px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-weight:600}.tabs .on{background:var(--ink);color:var(--bg)}
+.ord{background:var(--card);border:1px solid var(--line);border-left:6px solid var(--new);border-radius:14px;padding:14px;margin-bottom:12px}
+.ord.prep{border-left-color:var(--prep)}.ord.ready{border-left-color:var(--ready)}.ord.done,.ord.cancel{opacity:.55;border-left-color:var(--mute)}.ord.cancel ul{text-decoration:line-through}
+.ord.new{animation:bl 1.2s ease-in-out infinite}@keyframes bl{50%{box-shadow:0 0 0 3px var(--new)}}
+@media(prefers-reduced-motion:reduce){.ord.new{animation:none;box-shadow:0 0 0 3px var(--new)}}
+.ord header{display:flex;justify-content:space-between;gap:8px}.tbl{font-size:40px;font-weight:800;line-height:1}.st{font-size:20px;font-weight:700}
+ul{list-style:none;margin:8px 0;padding:0}li{display:flex;justify-content:space-between;padding:2px 0;font-size:18px}
+.note{background:var(--hi);color:#1A2B29;border-radius:10px;padding:8px 12px;margin:8px 0;font-weight:500}
+footer{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.next{background:var(--ink);color:var(--bg);border-radius:10px;padding:12px 20px;font-size:18px;font-weight:600}.ord.new .next{background:var(--ready);color:var(--on)}
+.rep{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-weight:600}
+.mrow{display:grid;grid-template-columns:1fr 70px auto auto auto;gap:6px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:8px}
+.mrow input{margin:0;padding:8px}.tg{background:var(--acc);color:var(--on);border-radius:10px;padding:9px 10px;font-weight:600}.tg.off{background:var(--new)}
+.hint{color:var(--mute);font-size:14px;margin:2px 0}.err{color:var(--new)}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+#pr{display:none}@media print{main{display:none}#pr{display:block;width:58mm;font:14px monospace;color:#000;background:#fff}}
+</style>
+</head>
+<body>
+<main id="app"></main><div id="pr"></div>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getFirestore,collection,doc,onSnapshot,updateDoc,addDoc,deleteDoc,getDocs,increment,query,where,orderBy} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getAuth,signInWithEmailAndPassword,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+// ===== CONFIG: har cafe ke liye sirf yeh hissa badlein =====
+const CFG={cafeName:'Brew & Bite'};
+const app=initializeApp({
+  apiKey:"AIzaSyCz9QKgYJojdCsVAllBAfFS58kizdhP_7E",authDomain:"qr-order-9acb1.firebaseapp.com",projectId:"qr-order-9acb1",
+  storageBucket:"qr-order-9acb1.firebasestorage.app",messagingSenderId:"686570229974",appId:"1:686570229974:web:355a68dd2ca1abb2b17977"});
+const db=getFirestore(app),auth=getAuth(app);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const IC={new:'🔴 नया',prep:'🟡 बन रहा',ready:'🟢 तैयार',done:'⚪ पूरा',cancel:'❌ रद्द'};
+const NEXT={new:['prep','✅ स्वीकार'],prep:['ready','🟢 तैयार'],ready:['done','🍽️ सर्व हुआ']};
+const NUM=['शून्य','एक','दो','तीन','चार','पाँच','छह','सात','आठ','नौ','दस'];const num=n=>NUM[+n]||String(n);
+const SEED=[['Coffee','Cappuccino','कैपुचीनो',150],['Coffee','Cold Coffee','कोल्ड कॉफ़ी',180],['Coffee','Masala Chai','मसाला चाय',70],['Pizza','Margherita Pizza','मार्गरीटा पिज़्ज़ा',299],['Pizza','Paneer Tikka Pizza','पनीर टिक्का पिज़्ज़ा',349],['Snacks','Veg Sandwich','वेज सैंडविच',120],['Snacks','French Fries','फ्रेंच फ्राइज़',110],['Dessert','Brownie','ब्राउनी',140]];
+let orders=[],menu=[],voiceOn=false,wl=null,first=true,uo=null,um=null,msg='',user=null,tab='o',showDone=false,sum=null;
+
+function beep(){try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.setValueAtTime(.15,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.4);o.start();o.stop(a.currentTime+.4)}catch(e){}}
+function say(t){if(!('speechSynthesis' in window))return;const u=new SpeechSynthesisUtterance(t);u.lang='hi-IN';u.rate=.9;const v=speechSynthesis.getVoices().find(v=>v.lang&&v.lang.toLowerCase().startsWith('hi'));if(v)u.voice=v;speechSynthesis.speak(u)}
+function speak(o){say(`टेबल नंबर ${num(o.table)}। ${o.items.map(i=>num(i.q)+' '+(i.h||i.n)).join(', ')}। ${num(o.people)} लोग।${o.note?' नोट: '+o.note+'।':''} जल्दी तैयार करो।`)}
+async function toggleVoice(){voiceOn=!voiceOn;if(voiceOn){say('आवाज़ चालू है');try{wl=await navigator.wakeLock.request('screen')}catch(e){}}else{speechSynthesis.cancel();try{wl&&wl.release()}catch(e){}}render()}
+document.addEventListener('visibilitychange',async()=>{if(voiceOn&&!document.hidden){try{wl=await navigator.wakeLock.request('screen')}catch(e){}}});
+setInterval(()=>{if(!voiceOn)return;const p=orders.filter(o=>o.status==='new');if(p.length)say('ध्यान दें। '+p.map(o=>'टेबल नंबर '+num(o.table)).join(', ')+' का नया ऑर्डर स्वीकार करें।')},30000);
+function printKot(o){$('#pr').innerHTML=`<b>${esc(CFG.cafeName)}</b><br>TABLE ${esc(o.table)} - ${esc(o.name)}<br>${o.people} log, ${new Date(o.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}<hr>${o.items.map(i=>i.q+' x '+esc(i.n)).join('<br>')}<hr>${o.note?'NOTE: '+esc(o.note)+'<hr>':''}#${o.id.slice(-4)}`;window.print()}
+async function loadSum(){try{const d=new Date();d.setHours(0,0,0,0);const s=await getDocs(query(collection(db,'orders'),where('t','>=',d.getTime())));
+  const all=s.docs.map(x=>x.data()).filter(o=>o.status!=='cancel'),cnt={};let rev=0;all.forEach(o=>{rev+=o.total;o.items.forEach(i=>cnt[i.n]=(cnt[i.n]||0)+i.q)});
+  sum={n:all.length,c:s.size-all.length,rev,top:Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,5)};msg=''}catch(e){msg='Sarankh load nahi hua: '+e.code}render()}
+
+onAuthStateChanged(auth,u=>{user=u;[uo,um].forEach(f=>f&&f());uo=um=null;orders=[];menu=[];first=true;
+  if(u){
+    uo=onSnapshot(query(collection(db,'orders'),where('t','>',Date.now()-4*3600e3),orderBy('t','desc')),snap=>{
+      if(!first)snap.docChanges().forEach(ch=>{const o={id:ch.doc.id,...ch.doc.data()};
+        if(ch.type==='added')voiceOn?speak(o):beep();
+        if(ch.type==='modified'&&o.status==='cancel')voiceOn?say(`टेबल नंबर ${num(o.table)} का ऑर्डर रद्द हुआ।`):beep()});
+      first=false;orders=snap.docs.map(d=>({id:d.id,...d.data()}));msg='';render()},e=>{msg='Orders load nahi hue: '+e.code;render()});
+    um=onSnapshot(collection(db,'menu'),s=>{menu=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.o||0)-(b.o||0));
+      if(tab==='m'&&!(document.activeElement&&document.activeElement.tagName==='INPUT'))render()},()=>{})}
+  render()});
+
+function render(){const a=$('#app');
+  if(!user){a.innerHTML=`<h1>Kitchen login</h1><p class="hint">Sirf cafe staff ke liye.</p><input id="em" type="email" placeholder="Email" autocomplete="username"><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button class="btn" id="li">Login</button><p class="err">${esc(msg)}</p>`;
+    $('#li').onclick=async()=>{try{await signInWithEmailAndPassword(auth,$('#em').value.trim(),$('#pw').value)}catch(e){msg='Login nahi hua. Email ya password galat hai.';render()}};return}
+  const nn=orders.filter(o=>o.status==='new').length;
+  let body='';
+  if(tab==='o'){
+    const vis=orders.filter(o=>showDone||!['done','cancel'].includes(o.status)),hid=orders.length-vis.length;
+    body=`<button class="vbtn ${voiceOn?'on':''}" id="vb">${voiceOn?'🔊 आवाज़ चालू है (बंद करें)':'🔈 आवाज़ चालू करें'}</button>`+
+    (vis.length?vis.map(o=>`<article class="ord ${o.status}"><header><div><div class="tbl">Table ${esc(o.table)}</div><div>${esc(o.name)} · ${o.people} log · ${new Date(o.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}${o.phone?' · '+esc(o.phone):''}</div></div><span class="st">${IC[o.status]||''}</span></header>
+    <ul>${o.items.map(i=>`<li><span><b>${i.q} ×</b> ${esc(i.n)}</span><span>₹${i.q*i.p}</span></li>`).join('')}</ul>
+    ${o.note?`<div class="note"><b>Note:</b> ${esc(o.note)}</div>`:''}${o.rating?`<div class="note">⭐ ${o.rating}/5${o.fb?' · '+esc(o.fb):''}</div>`:''}
+    <footer><b>Total ₹${o.total}</b><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="rep" data-k="${o.id}">🖨️</button>${o.status==='cancel'?'':`<button class="rep" data-r="${o.id}">🔊</button>`}${NEXT[o.status]?`<button class="next" data-o="${o.id}">${NEXT[o.status][1]}</button>`:''}</span></footer></article>`).join(''):'<p class="hint">Abhi koi chalu order nahi.</p>')+
+    (hid||showDone?`<button class="rep" id="sd" style="width:100%">${showDone?'पूरे हुए छिपाएँ':'पूरे हुए orders दिखाएँ ('+hid+')'}</button>`:'')+'<p class="hint">Sirf pichhle 4 ghante ke orders dikhte hain.</p>'
+  }else if(tab==='m'){
+    body=(menu.length?'':'<button class="btn" id="seed">नमूना menu डालें</button>')+
+    `<p class="hint">दाम बदलने के लिए नंबर बदलिए। "खत्म" दबाने पर item customer के menu से हट जाएगा। ⭐ लगाने पर item "सबसे ज़्यादा पसंद" में हमेशा दिखेगा।</p>`+
+    menu.map(m=>`<div class="mrow"><div><b>${esc(m.n)}</b><div class="hint">${esc(m.c)}</div></div><input type="number" value="${m.p}" data-pr="${m.id}"><button class="rep" data-fv="${m.id}">${m.fav?'⭐':'☆'}</button><button class="tg ${m.on===false?'off':''}" data-tg="${m.id}">${m.on===false?'⛔ खत्म':'✅ है'}</button><button class="rep" data-del="${m.id}">🗑</button></div>`).join('')+
+    `<div class="card"><h2 style="font-size:18px;margin-bottom:8px">नया item जोड़ें</h2><input id="an" placeholder="नाम (English)"><input id="ah" placeholder="हिंदी नाम (आवाज़ के लिए)"><input id="ac" placeholder="Category (जैसे Coffee)"><input id="ap" type="number" placeholder="दाम"><button class="btn" id="add" style="margin:0">जोड़ें</button></div>`
+  }else{
+    body=`<button class="btn" id="ls">आज का सारांश लाएँ</button>`+(sum?`<div class="card"><h2>आज</h2><p>Orders: <b>${sum.n}</b> (रद्द: ${sum.c})</p><p>कुल बिक्री: <b>₹${sum.rev}</b></p><p><b>सबसे ज़्यादा बिके:</b></p>${sum.top.map(([n,q])=>`<div>${esc(n)}: ${q}</div>`).join('')||'<div class="hint">अभी कुछ नहीं</div>'}</div>`:'<p class="hint">यह सिर्फ़ दबाने पर पढ़ता है, ताकि free सीमा बची रहे।</p>')
+  }
+  a.innerHTML=`<div class="top"><h1>${esc(CFG.cafeName)}${nn?` · ${nn} नया`:''}</h1><button class="rep" id="lo">Logout</button></div>
+  <div class="tabs"><button class="${tab==='o'?'on':''}" data-t="o">Orders</button><button class="${tab==='m'?'on':''}" data-t="m">Menu</button><button class="${tab==='s'?'on':''}" data-t="s">सारांश</button></div><p class="err">${esc(msg)}</p>`+body;
+  $('#lo').onclick=()=>signOut(auth);
+  a.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
+  const on=(s,f)=>{const e=$(s);if(e)e.onclick=f};
+  on('#vb',toggleVoice);on('#sd',()=>{showDone=!showDone;render()});on('#ls',loadSum);
+  a.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>speak(orders.find(x=>x.id===b.dataset.r)));
+  a.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>printKot(orders.find(x=>x.id===b.dataset.k)));
+  a.querySelectorAll('[data-o]').forEach(b=>b.onclick=async()=>{const o=orders.find(x=>x.id===b.dataset.o);
+    const nx=NEXT[o.status][0];try{await updateDoc(doc(db,'orders',o.id),{status:nx})}catch(e){msg='Status badal nahi paya (shayad customer ne cancel kar diya).';render();return}
+    if(nx==='done')for(const i of o.items){const m=menu.find(x=>x.id===i.id)||menu.find(x=>x.n===i.n);if(m)try{await updateDoc(doc(db,'menu',m.id),{sold:increment(i.q)})}catch(e){}}});
+  on('#seed',async()=>{try{for(let i=0;i<SEED.length;i++){const [c,n,h,p]=SEED[i];await addDoc(collection(db,'menu'),{c,n,h,p,d:'',on:true,o:i})}}catch(e){msg='Menu nahi ban paya: '+e.code;render()}});
+  a.querySelectorAll('[data-pr]').forEach(i=>i.onchange=async()=>{const p=+i.value;if(p>0)try{await updateDoc(doc(db,'menu',i.dataset.pr),{p})}catch(e){msg='Dam nahi badla: '+e.code;render()}});
+  a.querySelectorAll('[data-tg]').forEach(b=>b.onclick=async()=>{const m=menu.find(x=>x.id===b.dataset.tg);try{await updateDoc(doc(db,'menu',m.id),{on:m.on===false})}catch(e){msg='Badal nahi paya: '+e.code;render()}});
+  a.querySelectorAll('[data-fv]').forEach(b=>b.onclick=async()=>{const m=menu.find(x=>x.id===b.dataset.fv);try{await updateDoc(doc(db,'menu',m.id),{fav:!m.fav})}catch(e){msg='Badal nahi paya: '+e.code;render()}});
+  a.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const m=menu.find(x=>x.id===b.dataset.del);if(confirm(m.n+' hatayein?'))try{await deleteDoc(doc(db,'menu',m.id))}catch(e){}});
+  on('#add',async()=>{const n=$('#an').value.trim(),c=$('#ac').value.trim(),p=+$('#ap').value;if(!n||!c||!(p>0)){msg='Naam, category aur dam zaroori hain.';render();return}
+    try{await addDoc(collection(db,'menu'),{n,h:$('#ah').value.trim()||n,c,p,d:'',on:true,o:menu.length});msg='';render()}catch(e){msg='Item nahi juda: '+e.code;render()}});
+}
+render();
+</script>
+</body>
+</html>
